@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Labyrinthe — Tortue</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Viga&family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Noto Sans', sans-serif;
+  background: #f0f2f5; color: #2c3e50;
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 24px 16px 40px;
+}
+h1, h2, h3 { font-family: 'Viga', sans-serif; }
+
+/* ── HEADER ── */
+header { text-align: center; margin-bottom: 28px; }
+header h1 { font-size: 2rem; color: #2c3e50; }
+header h1 i { color: #2e7d32; margin-right: 8px; }
+header p { font-size: .9rem; color: #6b7c93; margin-top: 4px; }
+
+/* ── AUTH BOX ── */
+#auth-box {
+  background: #fff; border: 1px solid #dde3ec;
+  border-radius: 20px; padding: 32px 28px;
+  width: 100%; max-width: 420px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.08);
+  text-align: center;
+}
+#auth-box h2 { font-size: 1.3rem; color: #2c3e50; margin-bottom: 20px; }
+
+.auth-tabs { display: flex; margin-bottom: 22px; border-bottom: 2px solid #f0f2f5; }
+.auth-tab {
+  flex: 1; padding: 9px; background: none; border: none;
+  font-family: 'Viga', sans-serif; font-size: .92rem; color: #8fa0b5;
+  cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;
+  transition: color .2s, border-color .2s;
+}
+.auth-tab.active { color: #2e7d32; border-bottom-color: #2e7d32; }
+
+.auth-form { display: flex; flex-direction: column; gap: 11px; }
+.auth-form.hidden { display: none; }
+.auth-field { display: flex; flex-direction: column; gap: 4px; text-align: left; }
+.auth-field label {
+  font-size: .75rem; font-weight: 700; color: #6b7c93;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.auth-field input {
+  padding: 10px 13px; border: 1px solid #dde3ec; border-radius: 9px;
+  font-family: 'Noto Sans', sans-serif; font-size: .9rem; color: #2c3e50;
+  transition: border-color .2s, box-shadow .2s; outline: none;
+}
+.auth-field input:focus { border-color: #2e7d32; box-shadow: 0 0 0 3px rgba(46,125,50,.1); }
+.auth-field .hint { font-size: .73rem; color: #a0b0c0; margin-top: 2px; }
+
+.auth-btn {
+  padding: 12px; background: #2e7d32; color: #fff; border: none;
+  border-radius: 10px; font-family: 'Viga', sans-serif; font-size: 1rem;
+  cursor: pointer; box-shadow: 0 4px 0 #1b5e20; margin-top: 4px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: transform .1s, box-shadow .1s, filter .1s;
+}
+.auth-btn:hover { filter: brightness(1.07); transform: translateY(-1px); }
+.auth-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #1b5e20; }
+.auth-btn:disabled { background: #c0c8d0; box-shadow: 0 4px 0 #9aa5b0; cursor: not-allowed; transform: none; filter: none; }
+
+.auth-error {
+  background: #fdf0ee; border: 1px solid #e07060; color: #8c2010;
+  border-radius: 8px; padding: 9px 14px; font-size: .83rem;
+  display: none; text-align: left; animation: pp .3s ease;
+}
+.auth-error.show { display: block; }
+@keyframes pp { from{transform:scale(.95);opacity:0} to{transform:scale(1);opacity:1} }
+
+/* ── SERIE SELECTION ── */
+#serie-box {
+  display: none;
+  width: 100%; max-width: 740px;
+  text-align: center;
+}
+#serie-box h2 { font-size: 1.4rem; color: #2c3e50; margin-bottom: 6px; }
+#serie-box .welcome {
+  font-size: .95rem; color: #6b7c93; margin-bottom: 24px;
+}
+#serie-box .welcome strong { color: #2e7d32; }
+
+#serie-cards { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+
+.serie-card {
+  flex: 1; min-width: 180px; max-width: 220px;
+  background: #fff; border: 2px solid #dde3ec;
+  border-radius: 18px; padding: 28px 20px;
+  text-decoration: none; color: inherit;
+  box-shadow: 0 2px 10px rgba(0,0,0,.06);
+  transition: transform .2s, box-shadow .2s, border-color .2s;
+  cursor: pointer;
+}
+.serie-card:hover { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(0,0,0,.12); }
+.serie-card.s1:hover { border-color: #2e7d32; }
+.serie-card.s2:hover { border-color: #1565c0; }
+.serie-card.s3:hover { border-color: #0277bd; }
+
+.card-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px; font-size: 1.8rem;
+}
+.s1 .card-icon { background: #e8f5e9; color: #2e7d32; }
+.s2 .card-icon { background: #e3f2fd; color: #1565c0; }
+.s3 .card-icon { background: #e1f5fe; color: #0277bd; }
+
+.serie-card h3 { font-size: 1.2rem; color: #2c3e50; margin-bottom: 4px; }
+.serie-card .desc { font-size: .82rem; color: #8fa0b5; margin-bottom: 14px; line-height: 1.5; }
+.serie-card .score-badge {
+  display: inline-block; padding: 3px 12px; border-radius: 20px;
+  font-family: 'Viga', sans-serif; font-size: .8rem; margin-bottom: 16px;
+}
+.s1 .score-badge { background: #e8f5e9; color: #2e7d32; }
+.s2 .score-badge { background: #e3f2fd; color: #1565c0; }
+.s3 .score-badge { background: #e1f5fe; color: #0277bd; }
+
+.card-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 22px; border-radius: 9px;
+  font-family: 'Viga', sans-serif; font-size: .95rem; color: #fff;
+  border: none; cursor: pointer;
+  transition: filter .15s, transform .1s;
+}
+.card-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.s1 .card-btn { background: #2e7d32; box-shadow: 0 3px 0 #1b5e20; }
+.s2 .card-btn { background: #1565c0; box-shadow: 0 3px 0 #0d47a1; }
+.s3 .card-btn { background: #0277bd; box-shadow: 0 3px 0 #01579b; }
+
+#logout-link {
+  margin-top: 18px; font-size: .8rem; color: #b0bcc9;
+  cursor: pointer; display: inline-block;
+  transition: color .2s;
+}
+#logout-link:hover { color: #c0392b; }
+
+footer { margin-top: 32px; font-size: .75rem; color: #c0c8d0; text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><i class="fa-solid fa-chess-board"></i>Labyrinthe — Tortue</h1>
+  <p>Programme la tortue pour attraper l'étoile !</p>
+</header>
+
+<!-- ── CONNEXION / INSCRIPTION ── -->
+<div id="auth-box">
+  <h2><i class="fa-solid fa-right-to-bracket" style="color:#2e7d32;margin-right:7px"></i>Accès élève</h2>
+
+  <div class="auth-tabs">
+    <button class="auth-tab active" onclick="switchTab('login')">
+      <i class="fa-solid fa-right-to-bracket"></i> Connexion
+    </button>
+    <button class="auth-tab" onclick="switchTab('register')">
+      <i class="fa-solid fa-user-plus"></i> Créer un compte
+    </button>
+  </div>
+
+  <!-- CONNEXION -->
+  <div class="auth-form" id="form-login">
+    <div class="auth-field">
+      <label><i class="fa-solid fa-envelope"></i> Courriel</label>
+      <input type="email" id="login-email" placeholder="ton@courriel.com" autocomplete="email"/>
+    </div>
+    <div class="auth-field">
+      <label><i class="fa-solid fa-lock"></i> Mot de passe</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"/>
+    </div>
+    <div class="auth-error" id="err-login"></div>
+    <button class="auth-btn" id="login-btn" onclick="doLogin()">
+      <i class="fa-solid fa-play"></i> Se connecter
+    </button>
+  </div>
+
+  <!-- INSCRIPTION -->
+  <div class="auth-form hidden" id="form-register">
+    <div class="auth-field">
+      <label><i class="fa-solid fa-user"></i> Nom, Prénom</label>
+      <input type="text" id="reg-nom" placeholder="Lapalme, Pascal" autocomplete="name"/>
+    </div>
+    <div class="auth-field">
+      <label><i class="fa-solid fa-envelope"></i> Courriel</label>
+      <input type="email" id="reg-email" placeholder="ton@courriel.com" autocomplete="email"/>
+    </div>
+    <div class="auth-field">
+      <label><i class="fa-solid fa-lock"></i> Mot de passe</label>
+      <input type="password" id="reg-pass" placeholder="Minimum 6 caractères" autocomplete="new-password"/>
+      <span class="hint">Minimum 6 caractères</span>
+    </div>
+    <div class="auth-field">
+      <label><i class="fa-solid fa-key"></i> Code de classe</label>
+      <input type="text" id="reg-code" placeholder="ABC123" autocomplete="off"/>
+      <span class="hint">Fourni par ton enseignant</span>
+    </div>
+    <div class="auth-error" id="err-reg"></div>
+    <button class="auth-btn" id="register-btn" onclick="doRegister()">
+      <i class="fa-solid fa-user-plus"></i> Créer mon compte
+    </button>
+  </div>
+</div>
+
+<!-- ── SÉLECTION DE SÉRIE ── -->
+<div id="serie-box">
+  <h2>Choisis une série !</h2>
+  <p class="welcome">Bonjour <strong id="user-welcome">—</strong> — quelle série veux-tu faire ?</p>
+  <div id="serie-cards">
+    <div class="serie-card s1" onclick="goToSerie(1)">
+      <div class="card-icon"><i class="fa-solid fa-1"></i></div>
+      <h3>Série 1</h3>
+      <p class="desc">Apprends les bases de la programmation par blocs</p>
+      <div class="score-badge" id="s1-score">0 / 40 pts</div>
+      <br>
+      <button class="card-btn"><i class="fa-solid fa-play"></i> Jouer</button>
+    </div>
+    <div class="serie-card s2" onclick="goToSerie(2)">
+      <div class="card-icon"><i class="fa-solid fa-2"></i></div>
+      <h3>Série 2</h3>
+      <p class="desc">Nouveaux défis pour aller plus loin</p>
+      <div class="score-badge" id="s2-score">0 pts</div>
+      <br>
+      <button class="card-btn"><i class="fa-solid fa-play"></i> Jouer</button>
+    </div>
+    <div class="serie-card s3" onclick="goToSerie(3)">
+      <div class="card-icon"><i class="fa-solid fa-3"></i></div>
+      <h3>Série 3</h3>
+      <p class="desc">🌊 Navigue et collecte toutes les étoiles !</p>
+      <div class="score-badge" id="s3-score">0 pts</div>
+      <br>
+      <button class="card-btn"><i class="fa-solid fa-play"></i> Jouer</button>
+    </div>
+  </div>
+  <div id="logout-link" onclick="logout()">
+    <i class="fa-solid fa-right-from-bracket"></i> Se déconnecter
+  </div>
+</div>
+
+<footer>Labyrinthe — Tortue &nbsp;·&nbsp; Programmation par blocs</footer>
+
+<script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx7yp3g30PMqU9-AE0FrSML6nsrrIkoBM3nlDNtug-h3ADg-iz8sqn9w0irLpGTq5tGGw/exec';
+
+/* ── INIT ── */
+document.addEventListener('DOMContentLoaded', () => {
+  // Si déjà connecté, afficher la sélection de série
+  const stored = localStorage.getItem('labyrinthe_user');
+  if (stored) showSerieSelection(JSON.parse(stored));
+
+  // Enter key
+  ['login-email','login-pass'].forEach(id =>
+    document.getElementById(id)?.addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); }));
+  ['reg-nom','reg-email','reg-pass','reg-code'].forEach(id =>
+    document.getElementById(id)?.addEventListener('keydown', e => { if(e.key==='Enter') doRegister(); }));
+  document.getElementById('reg-code')?.addEventListener('input', e =>
+    e.target.value = e.target.value.toUpperCase());
+});
+
+/* ── TABS ── */
+function switchTab(tab) {
+  document.getElementById('form-login').classList.toggle('hidden', tab !== 'login');
+  document.getElementById('form-register').classList.toggle('hidden', tab !== 'register');
+  document.querySelectorAll('.auth-tab').forEach((t,i) =>
+    t.classList.toggle('active', (i===0 && tab==='login') || (i===1 && tab==='register')));
+  setErr('login',''); setErr('reg','');
+}
+
+function setErr(id, msg) {
+  const el = document.getElementById('err-' + id);
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.toggle('show', !!msg);
+}
+
+/* ── CONNEXION ── */
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value.trim();
+  if (!email || !pass) { setErr('login','Remplis tous les champs.'); return; }
+
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Connexion...';
+  setErr('login','');
+
+  try {
+    const res = await callScript({ action:'login', courriel:email, motdepasse:pass });
+    if (res.ok) {
+      localStorage.setItem('labyrinthe_user', JSON.stringify({
+        nom: res.user.nom, courriel: res.user.courriel,
+        groupe: res.user.groupe, motdepasse: pass,
+        scores: res.user.scores || Array(20).fill(0)
+      }));
+      showSerieSelection(res.user);
+    } else {
+      setErr('login', res.msg);
+    }
+  } catch(e) {
+    setErr('login', 'Erreur de connexion. Réessaie.');
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-play"></i> Se connecter';
+}
+
+/* ── INSCRIPTION ── */
+async function doRegister() {
+  const nom   = document.getElementById('reg-nom').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const pass  = document.getElementById('reg-pass').value.trim();
+  const code  = document.getElementById('reg-code').value.trim().toUpperCase();
+  if (!nom||!email||!pass||!code) { setErr('reg','Remplis tous les champs.'); return; }
+
+  const btn = document.getElementById('register-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Création...';
+  setErr('reg','');
+
+  try {
+    const res = await callScript({ action:'register', nom, courriel:email, motdepasse:pass, code_classe:code });
+    if (res.ok) {
+      localStorage.setItem('labyrinthe_user', JSON.stringify({
+        nom: res.user.nom, courriel: res.user.courriel,
+        groupe: res.user.groupe, motdepasse: pass,
+        scores: Array(20).fill(0)
+      }));
+      showSerieSelection(res.user);
+    } else {
+      setErr('reg', res.msg);
+    }
+  } catch(e) {
+    setErr('reg', 'Erreur. Réessaie.');
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Créer mon compte';
+}
+
+/* ── SÉLECTION SÉRIE ── */
+function showSerieSelection(user) {
+  document.getElementById('auth-box').style.display  = 'none';
+  document.getElementById('serie-box').style.display = 'block';
+  document.getElementById('user-welcome').textContent = user.nom || user.courriel;
+
+  // Calculer scores s1 depuis localStorage
+  const stored = localStorage.getItem('labyrinthe_user');
+  if (stored) {
+    const u = JSON.parse(stored);
+    if (u.scores) {
+      const total = u.scores.reduce((a,b) => a+b, 0);
+      document.getElementById('s1-score').textContent = `${total} / 40 pts`;
+    }
+  }
+}
+
+function goToSerie(n) {
+  window.location.href = `labyrinthe-serie${n}.html`;
+}
+
+function logout() {
+  localStorage.removeItem('labyrinthe_user');
+  document.getElementById('serie-box').style.display  = 'none';
+  document.getElementById('auth-box').style.display   = 'block';
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-pass').value  = '';
+  switchTab('login');
+}
+
+/* ── APPEL APPS SCRIPT ── */
+async function callScript(data) {
+  const resp = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(data), redirect: 'follow',
+  });
+  return await resp.json();
+}
+</script>
+</body>
+</html>

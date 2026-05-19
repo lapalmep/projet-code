@@ -1,0 +1,1777 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Labyrinthe — Série 2</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Viga&family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/blockly/blockly_compressed.js"></script>
+<script src="https://unpkg.com/blockly/blocks_compressed.js"></script>
+<script src="https://unpkg.com/blockly/msg/fr.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Noto Sans', sans-serif;
+  background: #f0f2f5;
+  color: #2c3e50;
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 24px 16px 56px;
+}
+h1, h2, h3 { font-family: 'Viga', sans-serif; }
+
+/* ── HEADER ── */
+header { text-align: center; margin-bottom: 18px; }
+header h1 { font-size: 1.9rem; color: #2c3e50; }
+header h1 i { color: #1565c0; margin-right: 8px; }
+header p { font-size: .88rem; color: #6b7c93; margin-top: 4px; }
+
+/* ── PROGRESS BAR ── */
+#progress-wrap {
+  width: 100%; max-width: 980px; margin-bottom: 20px;
+  background: #fff; border: 1px solid #dde3ec;
+  border-radius: 14px; padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.05);
+}
+#progress-top {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 8px;
+}
+#progress-label {
+  font-family: 'Viga', sans-serif; font-size: .78rem;
+  text-transform: uppercase; letter-spacing: 1.5px; color: #8fa0b5;
+}
+#progress-score { font-family: 'Viga', sans-serif; font-size: .88rem; color: #2c3e50; }
+#progress-score i { color: #e8a020; margin-right: 4px; }
+#progress-score span { color: #e8a020; }
+#progress-bar { display: flex; gap: 4px; }
+.prog-seg {
+  flex: 1; height: 16px; border-radius: 3px;
+  background: #dde3ec; cursor: pointer;
+  transition: background .25s, transform .15s; position: relative;
+}
+.prog-seg:hover { transform: scaleY(1.18); }
+.prog-seg.done-2 { background: #2980b9; }
+.prog-seg.done-1 { background: #a8d4f0; }
+.prog-seg.current { background: #e8a020; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #e8a020; }
+.prog-seg::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 7px); left: 50%;
+  transform: translateX(-50%);
+  background: #2c3e50; color: #fff; font-size: .68rem;
+  font-family: 'Noto Sans', sans-serif; padding: 3px 7px;
+  border-radius: 4px; white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 10;
+}
+.prog-seg:hover::after { opacity: 1; }
+
+/* ── LAYOUT ── */
+#app { display: flex; gap: 20px; width: 100%; max-width: 980px; align-items: flex-start; }
+#left-col { display: flex; flex-direction: column; gap: 14px; width: 360px; flex-shrink: 0; }
+#app.quiz-mode { max-width: 1200px; }
+#app.quiz-mode #left-col { width: 440px; }
+
+/* ── MAZE ── */
+#maze-wrap {
+  background: #fff; border: 1px solid #dde3ec;
+  border-radius: 16px; padding: 14px 14px 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.07);
+  flex-shrink: 0; width: 295px;
+}
+#level-label {
+  font-family: 'Viga', sans-serif; font-size: .8rem; color: #8fa0b5;
+  text-align: center; margin-bottom: 8px;
+  text-transform: uppercase; letter-spacing: 1.2px;
+}
+#level-label span { color: #2e7d32; }
+
+#grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+
+.cell {
+  aspect-ratio: 1; border-radius: 4px; position: relative;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+/* MUR — brun foncé avec texture */
+.cell.wall { background: #8B5E3C; }
+.cell.wall::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.12) 0%, transparent 50%);
+}
+.cell.wall::after {
+  content: ''; position: absolute; inset: 16%;
+  border: 2px solid rgba(0,0,0,.25); border-radius: 3px;
+  background: rgba(0,0,0,.1);
+}
+/* CHEMIN — vert clair */
+.cell.path { background: #7ec850; }
+/* TNT — rouge */
+.cell.tnt { background: #c0392b; }
+.cell.tnt::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.15) 0%, transparent 50%);
+}
+.tnt-label {
+  position: absolute; font-family: 'Viga', sans-serif;
+  font-size: clamp(5px, 1.1vw, 9px); color: #fff;
+  z-index: 3; letter-spacing: .3px;
+  text-shadow: 0 1px 2px rgba(0,0,0,.5);
+}
+
+/* SPRITES */
+.sprite {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 5; pointer-events: none;
+  transition: all .28s ease;
+}
+
+/* Animations */
+@keyframes explode {
+  0%   { transform: scale(1);   opacity: 1; }
+  50%  { transform: scale(2.5); opacity: 1; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+.explosion {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: clamp(16px, 4vw, 28px); z-index: 10; pointer-events: none;
+  animation: explode .65s ease forwards;
+}
+@keyframes celebrate { 0%{transform:scale(1)} 50%{transform:scale(1.3)} 100%{transform:scale(1)} }
+.celebrate { animation: celebrate .4s ease; }
+@keyframes shake {
+  0%,100%{transform:translateX(0)} 20%{transform:translateX(-4px)}
+  40%{transform:translateX(4px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)}
+}
+.shake { animation: shake .35s ease; }
+
+/* MAX BADGE */
+#max-badge {
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px; margin-top: 10px; font-size: .8rem; color: #6b7c93;
+}
+.badge {
+  background: #f0f2f5; border: 1px solid #dde3ec;
+  border-radius: 6px; padding: 2px 9px;
+  font-family: 'Viga', sans-serif; font-size: .82rem; color: #2c3e50;
+}
+.badge.ok   { background: #edfbe9; border-color: #7dc560; color: #2d6e1a; }
+.badge.over { background: #fdf0ee; border-color: #e07060; color: #8c2010; }
+
+/* RUN BUTTON */
+#run-btn {
+  width: 100%; padding: 11px; margin-top: 10px;
+  background: #1565c0; color: #fff; border: none; border-radius: 10px;
+  font-family: 'Viga', sans-serif; font-size: 1.15rem;
+  cursor: pointer; box-shadow: 0 4px 0 #1b5e20;
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  transition: transform .1s, box-shadow .1s, filter .1s;
+}
+#run-btn:hover  { filter: brightness(1.07); transform: translateY(-1px); }
+#run-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #1b5e20; }
+#run-btn:disabled { background: #c0c8d0; box-shadow: 0 4px 0 #9aa5b0; cursor: not-allowed; transform: none; filter: none; }
+
+/* NAV */
+#nav-btns { display: flex; gap: 6px; margin-top: 8px; }
+.nav-btn {
+  flex: 1; padding: 7px; background: none; border: 1px solid #dde3ec;
+  border-radius: 8px; font-family: 'Noto Sans', sans-serif; font-size: .8rem;
+  color: #6b7c93; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  transition: background .2s, color .2s;
+}
+.nav-btn:hover { background: #f0f2f5; color: #2c3e50; }
+.nav-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ── RIGHT PANEL ── */
+#right { flex: 1; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+.card {
+  background: #fff; border: 1px solid #dde3ec;
+  border-radius: 14px; padding: 16px 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.05);
+}
+.card-title {
+  font-family: 'Viga', sans-serif; font-size: .78rem;
+  text-transform: uppercase; letter-spacing: 1.6px; color: #8fa0b5; margin-bottom: 12px;
+}
+#instr { display: flex; gap: 12px; align-items: flex-start; background: #f4fdf0; border: 1px solid #b8e89a; }
+#instr .ico { font-size: 2rem; flex-shrink: 0; line-height: 1; }
+#instr p { font-size: .87rem; line-height: 1.6; color: #2a4a1a; }
+#instr strong { color: #2e7d32; }
+
+/* BLOCKLY */
+#blockly-area {
+  position: relative; height: 420px;
+  border-radius: 10px; overflow: hidden; border: 1px solid #dde3ec;
+}
+#blockly-div { position: absolute; inset: 0; }
+
+#ws-head {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;
+}
+#ws-head .card-title { margin: 0; }
+#ctr { font-size: .75rem; color: #8fa0b5; background: #f0f2f5; padding: 3px 10px; border-radius: 20px; }
+#ctr span { color: #2e7d32; font-weight: 700; }
+#rst-btn {
+  background: none; border: 1px solid #dde3ec; color: #8fa0b5;
+  padding: 4px 10px; border-radius: 7px; font-size: .75rem;
+  cursor: pointer; font-family: 'Noto Sans', sans-serif;
+  transition: background .2s, color .2s;
+}
+#rst-btn:hover { background: #f0f2f5; color: #2c3e50; }
+#stop-btn {
+  background: none; border: 1px solid #e07060; color: #e07060;
+  padding: 4px 10px; border-radius: 7px; font-size: .75rem;
+  cursor: pointer; font-family: 'Noto Sans', sans-serif;
+  transition: background .2s, color .2s;
+}
+#stop-btn:hover:not(:disabled) { background: #fdf0ee; color: #c0392b; }
+#stop-btn:disabled { border-color: #dde3ec; color: #c0c8d0; cursor: not-allowed; }
+#modal .modal-pts.pts2 { background: #edfbe9; color: #2d6e1a; border: 1px solid #7dc560; }
+#modal .modal-pts.pts1 { background: #e8f4fd; color: #1a5276; border: 1px solid #2980b9; }
+#modal .modal-pts.pts0 { background: #fdf0ee; color: #8c2010; border: 1px solid #e07060; }
+
+/* ── QUIZ PANEL ── */
+#quiz-panel {
+  display: none;
+}
+#quiz-panel.show { display: flex; flex-direction: column; gap: 14px; }
+
+#quiz-question {
+  background: #fff8ee; border: 1px solid #f5d88a;
+  border-radius: 14px; padding: 14px 16px;
+  font-size: .9rem; color: #4a3b1a; line-height: 1.6;
+}
+#quiz-question strong { color: #b07010; font-family: 'Viga', sans-serif; }
+
+#quiz-choices { display: flex; flex-direction: column; gap: 8px; }
+
+.quiz-choice {
+  padding: 11px 16px; border-radius: 10px;
+  border: 2px solid #dde3ec; background: #fafbfc;
+  font-size: .88rem; color: #2c3e50; cursor: pointer;
+  text-align: left; font-family: 'Noto Sans', sans-serif;
+  transition: border-color .2s, background .2s;
+  display: flex; align-items: center; gap: 10px;
+}
+.quiz-choice:hover:not(:disabled) { border-color: #29b8cf; background: #f0fafc; }
+.quiz-choice.selected { border-color: #2980b9; background: #e8f4fd; color: #1a5276; font-weight: 600; }
+.quiz-choice.correct  { border-color: #5cb85c; background: #edfbe9; color: #2d6e1a; font-weight: 600; }
+.quiz-choice.wrong    { border-color: #e07060; background: #fdf0ee; color: #8c2010; }
+.quiz-choice:disabled { cursor: default; }
+.quiz-choice .choice-letter {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #f0f2f5; border: 1px solid #dde3ec;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Viga', sans-serif; font-size: .78rem; flex-shrink: 0;
+}
+.quiz-choice.selected .choice-letter { background: #2980b9; color: #fff; border-color: #2980b9; }
+.quiz-choice.correct  .choice-letter { background: #5cb85c; color: #fff; border-color: #5cb85c; }
+.quiz-choice.wrong    .choice-letter { background: #e07060; color: #fff; border-color: #e07060; }
+
+#quiz-seq-info {
+  font-size: .78rem; color: #8fa0b5; text-align: right;
+  font-family: 'Viga', sans-serif; letter-spacing: .5px;
+}
+
+#fb { min-height: 46px; display: flex; align-items: center; justify-content: center; }
+.fm {
+  padding: 10px 20px; border-radius: 10px;
+  font-weight: 600; font-size: .92rem;
+  display: flex; align-items: center; gap: 9px;
+  animation: pp .3s ease; text-align: center;
+}
+@keyframes pp { from{transform:scale(.85);opacity:0} to{transform:scale(1);opacity:1} }
+.ok   { background: #edfbe9; border: 1px solid #7dc560; color: #2d6e1a; }
+.ok2  { background: #e8f4fd; border: 1px solid #2980b9; color: #1a5276; }
+.err  { background: #fdf0ee; border: 1px solid #e07060; color: #8c2010; }
+.tnt  { background: #fff3e0; border: 1px solid #e67e22; color: #7d4600; }
+.inf  { background: #edf7fb; border: 1px solid #7acce0; color: #0e5f78; }
+
+@media(max-width:640px){
+  #app{flex-direction:column} #maze-wrap{width:100%}
+}
+
+/* ── VÉRIFICATION SI CHEMIN ── */
+@keyframes pulseGreen {
+  0%,100%{ box-shadow: inset 0 0 0 3px rgba(46,125,50,.3); }
+  50%    { box-shadow: inset 0 0 0 3px rgba(46,125,50,1); }
+}
+@keyframes pulseRed {
+  0%,100%{ box-shadow: inset 0 0 0 3px rgba(192,57,43,.3); }
+  50%    { box-shadow: inset 0 0 0 3px rgba(192,57,43,1); }
+}
+.check-free {
+  animation: pulseGreen .5s ease;
+  background: #a8e89a !important;
+}
+.check-blocked {
+  animation: pulseRed .5s ease;
+  background: #f7a8a0 !important;
+}
+.check-icon {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: clamp(10px, 2.5vw, 18px);
+  z-index: 8; pointer-events: none;
+  animation: popUp .2s ease;
+}
+
+#modal-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.55);
+  z-index: 100;
+  align-items: center; justify-content: center;
+  animation: fadeIn .25s ease;
+}
+#modal-overlay.show { display: flex; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+#modal {
+  background: #fff;
+  border-radius: 20px;
+  padding: 36px 32px 28px;
+  max-width: 420px; width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  text-align: center;
+  animation: popUp .3s cubic-bezier(.34,1.56,.64,1);
+  position: relative;
+}
+@keyframes popUp { from{transform:scale(.7);opacity:0} to{transform:scale(1);opacity:1} }
+
+#modal .modal-stars {
+  font-size: 2.2rem;
+  margin-bottom: 10px;
+  letter-spacing: 6px;
+}
+#modal h2 {
+  font-size: 1.6rem;
+  color: #2c3e50;
+  margin-bottom: 6px;
+}
+#modal .modal-pts {
+  display: inline-block;
+  font-family: 'Viga', sans-serif;
+  font-size: 1rem;
+  padding: 4px 16px;
+  border-radius: 20px;
+  margin-bottom: 18px;
+}
+#modal .modal-pts.pts2 { background: #edfbe9; color: #2d6e1a; border: 1px solid #7dc560; }
+#modal .modal-pts.pts1 { background: #e8f4fd; color: #1a5276; border: 1px solid #2980b9; }
+
+#modal .modal-summary {
+  background: #f8f9fb;
+  border: 1px solid #dde3ec;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 22px;
+  text-align: left;
+  font-size: .88rem;
+  color: #4a5568;
+  line-height: 1.7;
+}
+#modal .modal-summary .row {
+  display: flex; justify-content: space-between; align-items: center;
+}
+#modal .modal-summary .row + .row { border-top: 1px solid #eee; margin-top: 8px; padding-top: 8px; }
+#modal .modal-summary .lbl { color: #8fa0b5; font-size: .8rem; text-transform: uppercase; letter-spacing: 1px; font-family: 'Viga', sans-serif; }
+#modal .modal-summary .val { font-weight: 700; color: #2c3e50; }
+
+#modal .modal-btns { display: flex; gap: 10px; }
+#modal-next-btn {
+  flex: 1; padding: 12px;
+  background: #2e7d32; color: #fff; border: none; border-radius: 10px;
+  font-family: 'Viga', sans-serif; font-size: 1.05rem;
+  cursor: pointer; box-shadow: 0 4px 0 #1b5e20;
+  transition: transform .1s, box-shadow .1s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+#modal-next-btn:hover { transform: translateY(-1px); filter: brightness(1.07); }
+#modal-next-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #1b5e20; }
+#modal-next-btn:disabled { background: #c0c8d0; box-shadow: 0 4px 0 #9aa5b0; cursor: default; transform: none; }
+
+#modal-retry-btn {
+  padding: 12px 18px;
+  background: none; border: 1px solid #dde3ec; color: #6b7c93;
+  border-radius: 10px; font-family: 'Noto Sans', sans-serif; font-size: .9rem;
+  cursor: pointer; transition: background .2s, color .2s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+#modal-retry-btn:hover { background: #f0f2f5; color: #2c3e50; }
+
+#modal-close {
+  position: absolute; top: 14px; right: 16px;
+  background: none; border: none; font-size: 1.2rem;
+  color: #b0bcc9; cursor: pointer; line-height: 1;
+}
+#modal-close:hover { color: #2c3e50; }
+
+/* ── SÉLECTION DE SÉRIE ── */
+#serie-overlay {
+  position: fixed; inset: 0; z-index: 150;
+  background: rgba(240,242,245,.97);
+  display: none;
+  align-items: center; justify-content: center;
+  padding: 20px;
+}
+#serie-overlay.show { display: flex; }
+#serie-box {
+  background: #fff; border: 1px solid #dde3ec;
+  border-radius: 20px; padding: 36px 32px;
+  width: 100%; max-width: 520px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.1);
+  text-align: center;
+}
+#serie-box h2 { font-size: 1.5rem; color: #2c3e50; margin-bottom: 6px; }
+#serie-box p  { font-size: .88rem; color: #6b7c93; margin-bottom: 28px; }
+#serie-cards  { display: flex; gap: 14px; }
+.serie-card {
+  flex: 1; padding: 24px 16px; border-radius: 14px;
+  border: 2px solid #dde3ec; cursor: pointer;
+  transition: border-color .2s, transform .15s, box-shadow .2s;
+  background: #fafbfc;
+}
+.serie-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.1); }
+.serie-card.s1:hover { border-color: #2e7d32; }
+.serie-card.s2:hover { border-color: #1565c0; }
+.serie-card .s-icon {
+  font-size: 2.4rem; margin-bottom: 10px;
+  width: 56px; height: 56px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 12px;
+}
+.serie-card.s1 .s-icon { background: #e8f5e9; color: #2e7d32; }
+.serie-card.s2 .s-icon { background: #e3f2fd; color: #1565c0; }
+.serie-card h3 { font-size: 1.1rem; color: #2c3e50; margin-bottom: 4px; }
+.serie-card p  { font-size: .8rem; color: #8fa0b5; margin: 0; }
+.serie-card .s-score {
+  margin-top: 12px; font-family: 'Viga', sans-serif;
+  font-size: .85rem; padding: 4px 12px; border-radius: 20px;
+  display: inline-block;
+}
+.serie-card.s1 .s-score { background: #e8f5e9; color: #2e7d32; }
+.serie-card.s2 .s-score { background: #e3f2fd; color: #1565c0; }
+
+/* Bouton changer de série dans la barre de progression */
+#serie-switch-btn {
+  background: none; border: 1px solid #dde3ec; color: #6b7c93;
+  padding: 3px 10px; border-radius: 7px; font-size: .75rem;
+  cursor: pointer; font-family: 'Noto Sans', sans-serif;
+  transition: background .2s, color .2s; margin-left: 8px;
+}
+#serie-switch-btn:hover { background: #f0f2f5; color: #2c3e50; }
+
+
+#user-bar {
+  display: none; width: 100%; max-width: 980px;
+  background: #fff; border: 1px solid #dde3ec; border-radius: 12px;
+  padding: 8px 16px; margin-bottom: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.04);
+  align-items: center; gap: 10px;
+}
+#user-bar.show { display: flex; }
+#user-bar .user-name { font-family: 'Viga', sans-serif; font-size: .95rem; color: #2c3e50; }
+#user-bar .user-name i { color: #2e7d32; margin-right: 6px; }
+#user-bar .user-group { font-size: .8rem; color: #8fa0b5; }
+#logout-btn {
+  margin-left: auto; background: none; border: 1px solid #dde3ec;
+  color: #8fa0b5; padding: 4px 12px; border-radius: 7px;
+  font-size: .78rem; cursor: pointer; font-family: 'Noto Sans', sans-serif;
+  transition: background .2s, color .2s;
+}
+#logout-btn:hover { background: #fdf0ee; color: #c0392b; border-color: #e07060; }
+</style>
+</head>
+<body>
+
+<!-- ── USER BAR ── -->
+<div id="user-bar">
+  <div>
+    <div class="user-name"><i class="fa-solid fa-circle-user"></i><span id="user-name-txt">—</span></div>
+    <div class="user-group"><i class="fa-solid fa-users" style="margin-right:4px"></i><span id="user-group-txt">—</span></div>
+  </div>
+  <a href="labyrinthe-index.html" style="margin-left:auto;margin-right:8px;text-decoration:none;font-size:.78rem;color:#8fa0b5;border:1px solid #dde3ec;padding:4px 10px;border-radius:7px;font-family:'Noto Sans',sans-serif" ><i class="fa-solid fa-grid-2"></i> Séries</a>
+  <button id="logout-btn" onclick="logout()">
+    <i class="fa-solid fa-right-from-bracket"></i> Déconnexion
+  </button>
+</div>
+
+<header>
+  <h1><i class="fa-solid fa-chess-board"></i> Labyrinthe — Série 2</h1>
+  <p>Programme la tortue pour attraper l'étoile !</p>
+</header>
+
+<div id="progress-wrap">
+  <div id="progress-top">
+    <div id="progress-label">
+      <i class="fa-solid fa-list-ol" style="margin-right:5px"></i>
+      <span style="color:#1565c0;font-family:'Viga',sans-serif">Série 2</span>
+      — Progression
+    </div>
+    <div id="progress-score">
+      <i class="fa-solid fa-star"></i>Score : <span id="total-score">0</span> / <span id="max-score">40</span> pts
+    </div>
+  </div>
+  <div id="progress-bar"></div>
+</div>
+
+<div id="app">
+  <!-- LABYRINTHE -->
+  <div id="maze-wrap">
+    <div id="level-label">Niveau <span id="lv-num">1</span></div>
+    <div id="grid"></div>
+    <div id="max-badge">
+      <i class="fa-solid fa-cubes"></i>
+      Blocs max :&nbsp;<span class="badge" id="max-val">—</span>
+      &nbsp;|&nbsp;Utilisés :&nbsp;<span class="badge" id="used-val">0</span>
+    </div>
+    <button id="run-btn" onclick="run()"><i class="fa-solid fa-play"></i> Lancer</button>
+    <div id="nav-btns">
+      <button class="nav-btn" id="prev-btn" onclick="goToLevel(currentLevel-1)">
+        <i class="fa-solid fa-chevron-left"></i> Précédent
+      </button>
+      <button class="nav-btn" id="next-btn" onclick="goToLevel(currentLevel+1)">
+        Suivant <i class="fa-solid fa-chevron-right"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- COLONNE DROITE : instruction + workspace + quiz + fb -->
+  <div id="right">
+    <div class="card" id="instr">
+      <div class="ico">🐢</div>
+      <p id="instr-text">—</p>
+    </div>
+
+    <!-- WORKSPACE (en haut) -->
+    <div class="card" id="ws-card">
+      <div id="ws-head">
+        <div class="card-title"><i class="fa-solid fa-code" style="margin-right:6px;color:#29b8cf"></i>Espace de travail</div>
+        <div id="ctr">Blocs : <span id="cnt">0</span></div>
+        <div style="display:flex;gap:6px">
+          <button id="stop-btn" onclick="stopExec()" disabled><i class="fa-solid fa-stop"></i> Stop</button>
+          <button id="rst-btn" onclick="resetWS(true)"><i class="fa-solid fa-arrow-rotate-left"></i> Réinitialiser</button>
+        </div>
+      </div>
+      <div id="blockly-area"><div id="blockly-div"></div></div>
+    </div>
+
+    <!-- QUIZ PANEL (en bas, niveaux type quiz seulement) -->
+    <div class="card" id="quiz-panel">
+      <div id="quiz-seq-info">Séquence <span id="quiz-seq-num">1</span> / 3</div>
+      <div id="quiz-question">
+        <strong><i class="fa-solid fa-question-circle"></i> Que se passera-t-il ?</strong><br>
+        Lis le code dans l'espace de travail, puis choisis ta réponse.
+      </div>
+      <div id="quiz-choices"></div>
+    </div>
+
+    <div id="fb"></div>
+  </div>
+</div>
+
+<div id="modal-overlay">
+  <div id="modal">
+    <button id="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+    <div class="modal-stars" id="modal-stars">⭐⭐</div>
+    <h2 id="modal-title">Bravo !</h2>
+    <div class="modal-pts pts2" id="modal-pts">2 points</div>
+    <div class="modal-summary">
+      <div class="row">
+        <span class="lbl">Niveau</span>
+        <span class="val" id="modal-level">—</span>
+      </div>
+      <div class="row">
+        <span class="lbl">Blocs utilisés</span>
+        <span class="val" id="modal-used">—</span>
+      </div>
+      <div class="row">
+        <span class="lbl">Blocs max (2 pts)</span>
+        <span class="val" id="modal-max">—</span>
+      </div>
+      <div class="row">
+        <span class="lbl">Score ce niveau</span>
+        <span class="val" id="modal-score">—</span>
+      </div>
+      <div class="row">
+        <span class="lbl">Score total</span>
+        <span class="val" id="modal-total">—</span>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button id="modal-retry-btn" onclick="closeModal(); resetWS(true);">
+        <i class="fa-solid fa-arrow-rotate-left"></i> Réessayer
+      </button>
+      <button id="modal-next-btn" onclick="closeModal(); goToLevel(currentLevel+1);">
+        Niveau suivant <i class="fa-solid fa-chevron-right"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<xml id="toolbox" style="display:none">
+  <block type="maze_move_forward"></block>
+  <block type="maze_turn_left"></block>
+  <block type="maze_turn_right"></block>
+  <block type="maze_repeat">
+    <value name="TIMES"><block type="maze_number"><field name="NUM">2</field></block></value>
+  </block>
+  <block type="maze_repeat_until"></block>
+</xml>
+
+<script>
+/* ══════════════════════════════
+   SVG SPRITES
+══════════════════════════════ */
+function turtleSVG(rot) {
+  return `<svg viewBox="0 0 40 40" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <g transform="rotate(${rot},20,20)">
+    <ellipse cx="20" cy="22" rx="11" ry="9" fill="#4caf50" stroke="#2e7d32" stroke-width="1.2"/>
+    <ellipse cx="20" cy="21" rx="9" ry="7.5" fill="#388e3c" stroke="#1b5e20" stroke-width=".8"/>
+    <line x1="20" y1="14" x2="20" y2="28" stroke="#2e7d32" stroke-width=".8" opacity=".6"/>
+    <line x1="12" y1="19" x2="28" y2="23" stroke="#2e7d32" stroke-width=".8" opacity=".6"/>
+    <line x1="12" y1="23" x2="28" y2="19" stroke="#2e7d32" stroke-width=".8" opacity=".6"/>
+    <ellipse cx="20" cy="11" rx="5" ry="4.5" fill="#66bb6a" stroke="#2e7d32" stroke-width="1"/>
+    <circle cx="18" cy="10" r="1.2" fill="#1b5e20"/>
+    <circle cx="22" cy="10" r="1.2" fill="#1b5e20"/>
+    <ellipse cx="11" cy="17" rx="3" ry="2" fill="#66bb6a" stroke="#2e7d32" stroke-width=".8"/>
+    <ellipse cx="29" cy="17" rx="3" ry="2" fill="#66bb6a" stroke="#2e7d32" stroke-width=".8"/>
+    <ellipse cx="11" cy="27" rx="3" ry="2" fill="#66bb6a" stroke="#2e7d32" stroke-width=".8"/>
+    <ellipse cx="29" cy="27" rx="3" ry="2" fill="#66bb6a" stroke="#2e7d32" stroke-width=".8"/>
+    <ellipse cx="20" cy="32" rx="2.5" ry="2" fill="#66bb6a" stroke="#2e7d32" stroke-width=".8"/>
+  </g></svg>`;
+}
+
+const STAR_SVG = `<svg viewBox="0 0 40 40" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="20,4 23.5,14.5 34.5,14.5 25.5,21 29,31.5 20,25 11,31.5 14.5,21 5.5,14.5 16.5,14.5"
+    fill="#f5c518" stroke="#e6a800" stroke-width="1"/>
+  <polygon points="20,8 22.8,15.5 30.5,15.5 24.2,19.8 26.8,27.5 20,23 13.2,27.5 15.8,19.8 9.5,15.5 17.2,15.5"
+    fill="#ffe066" opacity=".5"/>
+</svg>`;
+
+const DIR_ROT = [0, 90, 180, 270]; /* 0=haut 1=droite 2=bas 3=gauche */
+
+/* ══════════════════════════════
+   NIVEAUX
+   dir: 0=haut 1=droite 2=bas 3=gauche
+   maxBlocks: inclut le bloc "au démarrage"
+══════════════════════════════ */
+const SERIE_ID    = 2;
+const SERIE_LABEL = 'Série 2';
+const SERIE_COLOR = '#1565c0';
+const SERIE_SHEET = 'serie-2';
+const SERIE_DESC  = 'Nouveaux défis';
+const SERIE_ICON  = 'fa-2';
+
+function getLevels(){ return LEVELS; }
+
+const LEVELS = [
+  {
+    label:'Niveau 1', maxBlocks:6, dir:0,
+    blocks:['move','left','right','repeat'],
+    hint:'La tortue regarde vers le haut. Attention au piège ! Trouve le bon chemin vers l\'étoile.',
+    grid:[
+      ['B','B','B','B','B','B','B','B'],
+      ['B','B','B','B','B','B','B','B'],
+      ['B','B','B','B','B','B','B','B'],
+      ['B','B','F','V','V','B','B','B'],
+      ['B','B','B','T','V','B','B','B'],
+      ['B','B','B','B','D','B','B','B'],
+      ['B','B','B','B','B','B','B','B'],
+      ['B','B','B','B','B','B','B','B'],
+    ]
+  },
+  {
+    label:'Niveau 2', maxBlocks:9, dir:1,
+    blocks:['move','left','right','repeat'],
+    hint:'Deux chemins possibles — en haut ou en bas ! Attention aux pièges sur les côtés.',
+    grid:[
+      ['B','B','B','B','B','B','B','B'],
+      ['B','B','B','B','T','B','B','B'],
+      ['B','B','V','V','V','V','B','B'],
+      ['B','B','D','B','B','F','T','B'],
+      ['B','B','V','V','V','V','B','B'],
+      ['B','B','B','T','B','B','B','B'],
+      ['B','B','B','B','B','B','B','B'],
+      ['B','B','B','B','B','B','B','B'],
+    ]
+  },
+  {
+    label:'Niveau 3', maxBlocks:13, dir:1,
+    blocks:['move','left','right','repeat'],
+    hint:'🐛 Ce code contient des erreurs ! Les blocs <strong>en couleur foncée</strong> sont fixes. Déplace ou supprime les autres pour corriger le programme.',
+    startXml:`<xml xmlns="https://developers.google.com/blockly/xml">
+      <block type="maze_when_run" x="20" y="20" deletable="false" movable="false">
+        <next>
+          <block type="maze_move_forward_fixed" deletable="false" movable="true">
+            <next>
+              <block type="maze_move_forward_fixed" deletable="false" movable="true">
+                <next>
+                  <block type="maze_turn_right_fixed" deletable="false" movable="true">
+                    <next>
+                      <block type="maze_move_forward" deletable="true" movable="true">
+                        <next>
+                          <block type="maze_move_forward" deletable="true" movable="true">
+                            <next>
+                              <block type="maze_turn_left_fixed" deletable="false" movable="true">
+                                <next>
+                                  <block type="maze_move_forward_fixed" deletable="false" movable="true">
+                                    <next>
+                                      <block type="maze_turn_right_fixed" deletable="false" movable="true">
+                                        <next>
+                                          <block type="maze_move_forward_fixed" deletable="false" movable="true">
+                                            <next>
+                                              <block type="maze_move_forward" deletable="true" movable="true">
+                                                <next>
+                                                  <block type="maze_move_forward" deletable="true" movable="true">
+                                                    <next>
+                                                      <block type="maze_move_forward" deletable="true" movable="true">
+                                                      </block>
+                                                    </next>
+                                                  </block>
+                                                </next>
+                                              </block>
+                                            </next>
+                                          </block>
+                                        </next>
+                                      </block>
+                                    </next>
+                                  </block>
+                                </next>
+                              </block>
+                            </next>
+                          </block>
+                        </next>
+                      </block>
+                    </next>
+                  </block>
+                </next>
+              </block>
+            </next>
+          </block>
+        </next>
+      </block>
+    </xml>`,
+    grid:[
+      ['B','B','B','B','B','B','B','B'],
+      ['B','B','D','V','V','T','B','B'],
+      ['B','B','B','T','V','V','B','B'],
+      ['B','B','B','B','T','V','B','B'],
+      ['B','B','B','B','B','V','B','B'],
+      ['B','B','B','B','F','V','B','B'],
+      ['B','B','B','B','B','B','B','B'],
+      ['B','B','B','B','B','B','B','B'],
+    ]
+  },
+  {
+    label:'Niveau 4', maxBlocks:9, dir:3,
+    blocks:['move','left','right','repeat'],
+    hint:'La tortue regarde à gauche. Deux pièges sur la droite — reste sur le chemin !',
+    grid:[
+      ['B','B','B','B','B','B','B','B'],
+      ['B','B','B','B','B','B','B','B'],
+      ['B','B','B','V','F','B','B','B'],
+      ['B','B','B','V','T','B','B','B'],
+      ['B','B','B','V','B','B','B','B'],
+      ['B','B','B','V','T','B','B','B'],
+      ['B','B','B','V','D','B','B','B'],
+      ['B','B','B','B','B','B','B','B'],
+    ]
+  },
+  {
+    label:'Niveau 5', type:'quiz', dir:3,
+    hint:'Lis attentivement le code ci-dessous. <strong>Que se passera-t-il lorsque tu cliqueras sur Lancer ?</strong><br>Choisis ta réponse, puis clique sur Lancer pour vérifier !',
+    grid:[
+      ['B','B','B','B','B','B','B','B'],
+      ['B','B','B','B','B','B','B','B'],
+      ['B','B','T','V','V','V','B','B'],
+      ['B','B','V','V','T','F','B','B'],
+      ['B','B','T','V','T','V','B','B'],
+      ['B','B','T','V','T','V','B','B'],
+      ['B','B','B','V','D','V','B','B'],
+      ['B','B','B','B','B','B','B','B'],
+    ],
+    sequences: [
+      {
+        maxBlocks: 8,
+        xml:`<xml xmlns="https://developers.google.com/blockly/xml">
+          <block type="maze_when_run" x="20" y="20" deletable="false" movable="false">
+            <next><block type="maze_turn_left_fixed" deletable="false" movable="false">
+            <next><block type="maze_turn_left_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_turn_left_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            </block></next></block></next></block></next></block></next></block></next></block></next></block>
+            </next></block></xml>`,
+        choices: [
+          { text: 'La tortue se retrouve à un pas de l\'étoile.', correct: false },
+          { text: 'La tortue arrivera jusqu\'à l\'étoile.', correct: true },
+          { text: 'La tortue va se heurter au TNT.', correct: false },
+          { text: 'La tortue va foncer dans un mur.', correct: false },
+        ]
+      },
+      {
+        maxBlocks: 8,
+        xml:`<xml xmlns="https://developers.google.com/blockly/xml">
+          <block type="maze_when_run" x="20" y="20" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_turn_right_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_turn_right_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            </block></next></block></next></block></next></block></next></block></next></block></next></block></next></block>
+            </next></block></xml>`,
+        choices: [
+          { text: 'La tortue se retrouve à un pas de l\'étoile.', correct: false },
+          { text: 'La tortue arrivera jusqu\'à l\'étoile.', correct: false },
+          { text: 'La tortue va se heurter au TNT.', correct: true },
+          { text: 'La tortue va foncer dans un mur.', correct: false },
+        ]
+      },
+      {
+        maxBlocks: 10,
+        xml:`<xml xmlns="https://developers.google.com/blockly/xml">
+          <block type="maze_when_run" x="20" y="20" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_turn_right_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_turn_right_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_move_forward_fixed" deletable="false" movable="false">
+            <next><block type="maze_turn_right_fixed" deletable="false" movable="false">
+            </block></next></block></next></block></next></block></next></block></next></block></next></block></next></block></next></block></next></block>
+            </next></block></xml>`,
+        choices: [
+          { text: 'La tortue se retrouve à un pas de l\'étoile.', correct: true },
+          { text: 'La tortue arrivera jusqu\'à l\'étoile.', correct: false },
+          { text: 'La tortue va se heurter au TNT.', correct: false },
+          { text: 'La tortue va foncer dans un mur.', correct: false },
+        ]
+      },
+    ]
+  },
+  {
+    label:'Niveau 6', maxBlocks:999, dir:1,
+    blocks:['move','left','right','repeat'],
+    hint:'Pas de limite de blocs ! Trouve le chemin jusqu\'à l\'étoile en évitant les pièges.',
+    grid:[
+      ['B','B','B','B','B','B','B','B'],
+      ['B','D','V','V','V','T','V','B'],
+      ['B','V','V','T','V','V','V','B'],
+      ['B','V','V','V','V','V','V','T'],
+      ['B','T','V','V','V','V','V','F'],
+      ['B','V','V','V','V','V','V','B'],
+      ['B','V','B','V','V','V','T','B'],
+      ['B','T','B','V','B','T','B','B'],
+    ]
+  },
+  {
+    label:'Niveau 7', maxBlocks:7, dir:3,
+    blocks:['move','left','right','repeat'],
+    hint:'La tortue regarde à gauche. Chemin en zigzag — utilise <strong>Répéter(x)</strong> pour trouver le motif !',
+    grid:[
+      ['B','B','B','B','B','B','B','B'],
+      ['B','F','V','V','V','V','B','B'],
+      ['B','V','V','V','B','V','V','B'],
+      ['B','B','V','V','V','B','V','B'],
+      ['B','V','B','V','V','V','V','B'],
+      ['B','V','V','B','V','V','V','B'],
+      ['B','V','V','V','B','V','D','B'],
+      ['B','B','B','B','B','B','B','B'],
+    ]
+  },
+  {
+    label:'Niveau 8', maxBlocks:13, dir:0,
+    blocks:['move','left','right','repeat'],
+    hint:'La tortue regarde vers le haut. Le chemin fait le tour — utilise <strong>Répéter(x)</strong> !',
+    grid:[
+      ['B','B','B','B','B','B','B','B'],
+      ['B','B','B','B','B','B','B','B'],
+      ['V','V','V','V','V','V','V','V'],
+      ['V','B','V','B','D','B','V','V'],
+      ['V','B','V','B','B','B','V','V'],
+      ['V','B','V','B','F','B','V','V'],
+      ['V','V','V','V','V','V','V','V'],
+      ['B','B','B','B','B','B','B','B'],
+    ]
+  },
+];
+
+const TOTAL_LEVELS = 20;
+const DIRS = [{r:-1,c:0},{r:0,c:1},{r:1,c:0},{r:0,c:-1}];
+const DEFAULT_XML = `<xml xmlns="https://developers.google.com/blockly/xml"><block type="maze_when_run" x="20" y="20" deletable="false" movable="false"></block></xml>`;
+
+let currentLevel=0;
+let levelScores = {};
+let levelWorkspaces = {};
+let busy=false, won=false, stopRequested=false;
+let workspace;
+
+// Quiz state
+let quizChoiceCorrect = false; // true si le choix sélectionné est correct
+let quizSeqOrder = [0,1,2]; // ordre aléatoire des séquences
+let quizChoice = null;    // index du choix sélectionné
+let quizPtsAvail = 2;     // points restants (2→1→0)
+let quizAnswered = false; // a-t-il répondu juste ?
+
+/* ══════════════════════════════
+   QUIZ — fonctions
+══════════════════════════════ */
+function isQuizLevel() {
+  return getLevels()[currentLevel]?.type === 'quiz';
+}
+
+function loadQuizSequence(seqIdx) {
+  quizSeqIdx    = seqIdx;
+  quizChoice    = null;
+  quizChoiceCorrect = false;
+  quizAnswered  = false;
+  const lv  = getLevels()[currentLevel];
+  const realIdx = quizSeqOrder[seqIdx]; // ordre aléatoire
+  const seq = lv.sequences[realIdx];
+
+  // Mettre à jour info séquence
+  document.getElementById('quiz-seq-num').textContent = seqIdx + 1;
+
+  // Charger XML dans Blockly
+  workspace.clear();
+  const dom = (new DOMParser()).parseFromString(seq.xml, 'text/xml').documentElement;
+  Blockly.Xml.domToWorkspace(dom, workspace);
+
+  // Mélanger les choix
+  const letters = ['A','B','C','D'];
+  const shuffled = [...seq.choices.map((c,i) => ({...c, origIdx:i}))];
+  for (let i = shuffled.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [shuffled[i],shuffled[j]] = [shuffled[j],shuffled[i]];
+  }
+
+  // Afficher les choix
+  const container = document.getElementById('quiz-choices');
+  container.innerHTML = '';
+  shuffled.forEach((ch, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'quiz-choice';
+    btn.innerHTML = `<span class="choice-letter">${letters[i]}</span>${ch.text}`;
+    btn.dataset.correct = ch.correct ? '1' : '0';
+    btn.dataset.idx = i;
+    btn.addEventListener('click', () => selectQuizChoice(i, ch.correct, btn, container));
+    container.appendChild(btn);
+  });
+
+  // Lancer désactivé jusqu'au choix
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('fb').innerHTML = '';
+}
+
+function selectQuizChoice(idx, isCorrect, btn, container) {
+  if (busy || quizChoice !== null) return;
+  quizChoice = idx;
+  quizChoiceCorrect = isCorrect; // stocker directement
+
+  container.querySelectorAll('.quiz-choice').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  container.querySelectorAll('.quiz-choice').forEach(b => b.disabled = true);
+  document.getElementById('run-btn').disabled = false;
+}
+
+function handleQuizResult(result) {
+  const lv     = getLevels()[currentLevel];
+  const realIdx= quizSeqOrder[quizSeqIdx];
+  const seq    = lv.sequences[realIdx];
+  const isCorrect = quizChoiceCorrect;
+
+  // Révéler la bonne réponse
+  document.querySelectorAll('.quiz-choice').forEach(btn => {
+    if (btn.dataset.correct === '1') btn.classList.add('correct');
+    else if (btn.classList.contains('selected')) btn.classList.add('wrong');
+  });
+
+  if (isCorrect) {
+    // Bonne réponse !
+    quizAnswered = true;
+    const pts = quizPtsAvail;
+    if (!levelScores[currentLevel] || pts > levelScores[currentLevel])
+      levelScores[currentLevel] = pts;
+    buildProgressBar();
+    saveProgressToServer(currentLevel, pts);
+    busy = false; setRunning(false);
+    setTimeout(() => showModal(pts===2?'perfect':'good', null, null), 500);
+  } else {
+    // Mauvaise réponse
+    const nextSeq = quizSeqIdx + 1;
+    quizPtsAvail = Math.max(0, quizPtsAvail - 1);
+    busy = false; setRunning(false);
+    if (nextSeq < lv.sequences.length) {
+      fb('<i class="fa-solid fa-rotate-right"></i> Mauvaise réponse ! Nouvelle séquence...', 'inf');
+      setTimeout(() => {
+        buildGrid();
+        loadQuizSequence(nextSeq);
+      }, 1800);
+    } else {
+      // Plus de séquences — 0 pt
+      if (!levelScores[currentLevel]) levelScores[currentLevel] = 0;
+      buildProgressBar();
+      setTimeout(() => showModal('fail', null, null), 500);
+    }
+  }
+}
+
+/* ══════════════════════════════
+   CHANGEMENT DE SÉRIE
+══════════════════════════════ */
+
+
+/* ══════════════════════════════
+   PROGRESS BAR
+══════════════════════════════ */
+function buildProgressBar() {
+  const bar = document.getElementById('progress-bar');
+  bar.innerHTML = '';
+  let total = 0;
+  const levels = getLevels();
+  for (let i = 0; i < levels.length; i++) {
+    const seg = document.createElement('div');
+    seg.className = 'prog-seg';
+    const sc  = levelScores[i];
+    const lbl = levels[i].label;
+    seg.dataset.tip = sc===2 ? `${lbl} ⭐⭐ 2pts` : sc===1 ? `${lbl} ⭐ 1pt` : lbl;
+    if (sc===2){ seg.classList.add('done-2'); total+=2; }
+    else if(sc===1){ seg.classList.add('done-1'); total+=1; }
+    if (i===currentLevel) seg.classList.add('current');
+    seg.addEventListener('click', ()=>goToLevel(i));
+    bar.appendChild(seg);
+  }
+  document.getElementById('total-score').textContent = total;
+  const maxPts = levels.length * 2;
+  document.getElementById('max-score').textContent = maxPts;
+}
+
+/* ══════════════════════════════
+   NIVEAU
+══════════════════════════════ */
+function goToLevel(idx) {
+  if(busy) return;
+  if (idx<0 || idx>=getLevels().length) return;
+
+  // Sauvegarder le workspace du niveau courant avant de partir
+  if (workspace && workspace.getAllBlocks(false).length > 0) {
+    const xml = Blockly.Xml.domToText(Blockly.Xml.workspaceToDom(workspace));
+    levelWorkspaces[currentLevel] = xml;
+  }
+
+  currentLevel = idx;
+  const lv = getLevels()[idx];
+  startPos = null; goalPos = null;
+  for (let r=0;r<8;r++) for(let c=0;c<8;c++){
+    if(lv.grid[r][c]==='D') startPos={r,c};
+    if(lv.grid[r][c]==='F') goalPos={r,c};
+  }
+  startDir=lv.dir; pos={...startPos}; dir=startDir; won=false;
+  document.getElementById('lv-num').textContent = idx+1;
+  document.getElementById('instr-text').innerHTML = lv.hint;
+  document.getElementById('fb').innerHTML = '';
+  document.getElementById('prev-btn').disabled = idx===0;
+  document.getElementById('next-btn').disabled = idx>=getLevels().length-1;
+
+  const isQuiz = lv.type === 'quiz';
+  document.getElementById('app').classList.toggle('quiz-mode', isQuiz);
+
+  // Afficher/masquer panels selon le type
+  document.getElementById('quiz-panel').classList.toggle('show', isQuiz);
+  document.getElementById('ws-card').style.display = 'block';
+
+  if (isQuiz) {
+    // Mélanger l'ordre des séquences aléatoirement
+    quizSeqOrder = [...lv.sequences.keys()];
+    for (let i = quizSeqOrder.length-1; i > 0; i--) {
+      const j = Math.floor(Math.random()*(i+1));
+      [quizSeqOrder[i],quizSeqOrder[j]] = [quizSeqOrder[j],quizSeqOrder[i]];
+    }
+    quizSeqIdx   = 0;
+    quizPtsAvail = 2;
+    quizChoice   = null;
+    quizAnswered = false;
+    document.getElementById('max-val').textContent = '—';
+    document.getElementById('max-val').className = 'badge';
+    document.getElementById('rst-btn').style.display = 'none';
+    document.getElementById('stop-btn').style.display = 'none';
+  } else {
+    document.getElementById('max-val').textContent = lv.maxBlocks >= 999 ? '∞' : lv.maxBlocks;
+    document.getElementById('max-val').className = 'badge';
+    document.getElementById('rst-btn').style.display = '';
+    document.getElementById('stop-btn').style.display = '';
+  }
+
+  buildGrid();
+  buildProgressBar();
+  if (workspace) {
+    updateToolbox();
+    if (isQuiz) {
+      loadQuizSequence(0);
+    } else {
+      resetWS();
+    }
+  }
+}
+
+/* ══════════════════════════════
+   GRILLE
+══════════════════════════════ */
+function buildGrid() {
+  const g = document.getElementById('grid');
+  g.innerHTML = '';
+  const lv = getLevels()[currentLevel];
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++){
+    const t = lv.grid[r][c];
+    const el = document.createElement('div');
+    if(t==='B'){
+      el.className='cell wall';
+    } else if(t==='T'){
+      el.className='cell tnt';
+      const lb=document.createElement('span');
+      lb.className='tnt-label'; lb.textContent='TNT';
+      el.appendChild(lb);
+    } else {
+      el.className='cell path';
+    }
+    el.id=`c${r}_${c}`;
+    g.appendChild(el);
+  }
+  drawTurtle(); if(!won) drawStar();
+}
+
+function drawTurtle(){
+  rmSp('turtle');
+  const cell=document.getElementById(`c${pos.r}_${pos.c}`);
+  if(!cell) return;
+  const sp=document.createElement('div');
+  sp.className='sprite'; sp.dataset.role='turtle';
+  sp.innerHTML=turtleSVG(DIR_ROT[dir]);
+  cell.appendChild(sp);
+}
+function drawStar(){
+  rmSp('star');
+  const cell=document.getElementById(`c${goalPos.r}_${goalPos.c}`);
+  if(!cell) return;
+  const sp=document.createElement('div');
+  sp.className='sprite'; sp.dataset.role='star';
+  sp.innerHTML=STAR_SVG;
+  cell.appendChild(sp);
+}
+function rmSp(role){ document.querySelectorAll(`[data-role="${role}"]`).forEach(e=>e.remove()); }
+function isWalkable(r,c){ if(r<0||r>7||c<0||c>7)return false; return getLevels()[currentLevel].grid[r][c]!=='B'; }
+function isTNT(r,c){ return getLevels()[currentLevel].grid[r][c]==='T'; }
+function atGoal(r,c){ return r===goalPos.r && c===goalPos.c; }
+
+/* ══════════════════════════════
+   BLOCKLY INIT
+══════════════════════════════ */
+document.addEventListener('DOMContentLoaded', ()=>{
+  const CW='#2e7d32', CM='#29b8cf', CR='#9b59b6', CU='#e67e22';
+
+  Blockly.Blocks['maze_when_run']={init:function(){
+    this.setColour(CW);
+    this.appendDummyInput()
+        .appendField(new Blockly.FieldImage('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21" fill="white"/></svg>',16,16))
+        .appendField('au démarrage');
+    this.setNextStatement(true,null);
+    this.setDeletable(false); this.setMovable(false);
+  }};
+
+  Blockly.Blocks['maze_move_forward']={init:function(){
+    this.setColour(CM);
+    this.appendDummyInput().appendField('Avancer');
+    this.setPreviousStatement(true,null); this.setNextStatement(true,null);
+  }};
+
+  Blockly.Blocks['maze_turn_left']={init:function(){
+    this.setColour(CM);
+    this.appendDummyInput().appendField('↺  Tourner à gauche');
+    this.setPreviousStatement(true,null); this.setNextStatement(true,null);
+  }};
+
+  Blockly.Blocks['maze_turn_right']={init:function(){
+    this.setColour(CM);
+    this.appendDummyInput().appendField('↻  Tourner à droite');
+    this.setPreviousStatement(true,null); this.setNextStatement(true,null);
+  }};
+
+  Blockly.Blocks['maze_repeat']={init:function(){
+    this.setColour(CR);
+    this.appendValueInput('TIMES').setCheck('Number').appendField('🔁  Répéter');
+    this.appendDummyInput().appendField('fois');
+    this.appendStatementInput('DO').appendField('faire');
+    this.setPreviousStatement(true,null); this.setNextStatement(true,null);
+  }};
+
+  Blockly.Blocks['maze_number']={init:function(){
+    this.setColour('#c0a020');
+    this.appendDummyInput().appendField(new Blockly.FieldNumber(2,1,20,1),'NUM');
+    this.setOutput(true,'Number');
+  }};
+
+  Blockly.Blocks['maze_repeat_until']={init:function(){
+    this.setColour(CU);
+    this.appendDummyInput().appendField('🔁  Répéter jusqu\'à ⭐');
+    this.appendStatementInput('DO').appendField('faire');
+    this.setPreviousStatement(true,null); this.setNextStatement(true,null);
+  }};
+
+  /* ── Blocs fixes (gris) pour niveaux de débogage ── */
+  const CF = '#78909c'; // gris bleu — indique "fixe, non supprimable"
+  ['maze_move_forward','maze_turn_left','maze_turn_right'].forEach(type => {
+    const labels = {
+      maze_move_forward: 'Avancer',
+      maze_turn_left:    '↺  Tourner à gauche',
+      maze_turn_right:   '↻  Tourner à droite',
+    };
+    Blockly.Blocks[type + '_fixed'] = {
+      init: function() {
+        this.setColour(CF);
+        this.appendDummyInput().appendField('🔒 ' + labels[type]);
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setTooltip('Ce bloc est fixe — il ne peut pas être supprimé');
+      }
+    };
+  });
+
+  /* Bloc conditionnel : si chemin [direction] */
+  const CI='#29b8cf';
+  Blockly.Blocks['maze_if_path']={init:function(){
+    this.setColour(CI);
+    this.appendDummyInput()
+        .appendField('si chemin')
+        .appendField(new Blockly.FieldDropdown([
+          ['à gauche ↺','left'],
+          ['à droite ↻','right'],
+          ['devant →','ahead'],
+        ]),'DIR');
+    this.appendStatementInput('DO').appendField('faire');
+    this.setPreviousStatement(true,null); this.setNextStatement(true,null);
+  }};
+
+  Blockly.Blocks['maze_if_else_path']={init:function(){
+    this.setColour(CI);
+    this.appendDummyInput()
+        .appendField('si chemin')
+        .appendField(new Blockly.FieldDropdown([
+          ['devant →','ahead'],
+          ['à gauche ↺','left'],
+          ['à droite ↻','right'],
+        ]),'DIR');
+    this.appendStatementInput('DO').appendField('faire');
+    this.appendStatementInput('ELSE').appendField('sinon');
+    this.setPreviousStatement(true,null); this.setNextStatement(true,null);
+  }};
+
+  workspace = Blockly.inject('blockly-div',{
+    toolbox: document.getElementById('toolbox'),
+    scrollbars:false, trashcan:true,
+    grid:{spacing:20,length:3,colour:'#f0f2f5',snap:true},
+    theme: Blockly.Theme.defineTheme('turtle_theme',{
+      base: Blockly.Themes.Classic,
+      fontStyle:{family:'Noto Sans',size:12},
+      componentStyles:{
+        workspaceBackgroundColour:'#fafbfc',
+        toolboxBackgroundColour:'#f0f2f5',
+        toolboxForegroundColour:'#2c3e50',
+        flyoutBackgroundColour:'#f8f9fb',
+        flyoutForegroundColour:'#2c3e50',
+        flyoutOpacity:1,
+      }
+    }),
+    zoom:{controls:false,wheel:false,startScale:0.85},
+    move:{scrollbars:false,drag:true,wheel:false},
+  });
+
+  workspace.addChangeListener(()=>{
+    const n=workspace.getAllBlocks(false).length;
+    const max=getLevels()[currentLevel].maxBlocks;
+    document.getElementById('cnt').textContent=n;
+    const ub=document.getElementById('used-val');
+    ub.textContent=n;
+    ub.className=n>max?'badge over':n>1?'badge ok':'badge';
+  });
+
+  goToLevel(0);
+});
+
+/* ══════════════════════════════
+   TOOLBOX DYNAMIQUE
+══════════════════════════════ */
+function updateToolbox() {
+  const lv = getLevels()[currentLevel];
+  const blks = lv.blocks || ['move','left','right'];
+  const REPEAT_XML = `<block type="maze_repeat"><value name="TIMES"><block type="maze_number"><field name="NUM">2</field></block></value></block>`;
+  const MAP = {
+    move:         `<block type="maze_move_forward"></block>`,
+    left:         `<block type="maze_turn_left"></block>`,
+    right:        `<block type="maze_turn_right"></block>`,
+    repeat:       REPEAT_XML,
+    repeat_until: `<block type="maze_repeat_until"></block>`,
+    if_path:      `<block type="maze_if_path"></block>`,
+    if_else_path: `<block type="maze_if_else_path"></block>`,
+  };
+  const xml = `<xml xmlns="https://developers.google.com/blockly/xml">${blks.map(b=>MAP[b]||'').join('')}</xml>`;
+  const dom = (new DOMParser()).parseFromString(xml,'text/xml').documentElement;
+  workspace.updateToolbox(dom);
+}
+
+function setRunning(on){
+  document.getElementById('run-btn').disabled = on;
+  const sb = document.getElementById('stop-btn');
+  if(sb) sb.disabled = !on;
+}
+
+function stopExec(){
+  stopRequested = true;
+  const sb = document.getElementById('stop-btn');
+  if(sb) sb.disabled = true;
+}
+
+function resetWS(force=false){
+  if(busy){
+    stopRequested = true; busy = false;
+    setRunning(false);
+    workspace.highlightBlock(null);
+  }
+  pos={...startPos}; dir=startDir; won=false;
+  document.getElementById('fb').innerHTML='';
+  document.getElementById('max-val').className='badge';
+  buildGrid();
+  workspace.clear();
+  if (!force && levelWorkspaces[currentLevel]) {
+    const dom = (new DOMParser()).parseFromString(levelWorkspaces[currentLevel],'text/xml').documentElement;
+    Blockly.Xml.domToWorkspace(dom, workspace);
+  } else {
+    const xml = getLevels()[currentLevel].startXml || DEFAULT_XML;
+    const dom = (new DOMParser()).parseFromString(xml,'text/xml').documentElement;
+    Blockly.Xml.domToWorkspace(dom, workspace);
+    if (force) delete levelWorkspaces[currentLevel];
+  }
+}
+
+/* ══════════════════════════════
+   LECTURE SÉQUENCE
+══════════════════════════════ */
+function readBlocks(blk){
+  const seq=[];
+  while(blk){
+    if(blk.type==='maze_move_forward' || blk.type==='maze_move_forward_fixed')
+      seq.push({t:'move', id:blk.id});
+    else if(blk.type==='maze_turn_left'  || blk.type==='maze_turn_left_fixed')
+      seq.push({t:'left',  id:blk.id});
+    else if(blk.type==='maze_turn_right' || blk.type==='maze_turn_right_fixed')
+      seq.push({t:'right', id:blk.id});
+    else if(blk.type==='maze_repeat'){
+      const tb=blk.getInputTargetBlock('TIMES');
+      const n=tb?parseInt(tb.getFieldValue('NUM'))||1:1;
+      seq.push({t:'repeat',id:blk.id,times:n,inner:readBlocks(blk.getInputTargetBlock('DO'))});
+    }
+    else if(blk.type==='maze_repeat_until'){
+      seq.push({t:'repeat_until',id:blk.id,inner:readBlocks(blk.getInputTargetBlock('DO'))});
+    }
+    else if(blk.type==='maze_if_path'){
+      const d=blk.getFieldValue('DIR');
+      seq.push({t:'if_path',id:blk.id,pathDir:d,inner:readBlocks(blk.getInputTargetBlock('DO'))});
+    }
+    else if(blk.type==='maze_if_else_path'){
+      const d=blk.getFieldValue('DIR');
+      seq.push({t:'if_else_path',id:blk.id,pathDir:d,
+        innerDo:  readBlocks(blk.getInputTargetBlock('DO')),
+        innerElse:readBlocks(blk.getInputTargetBlock('ELSE'))});
+    }
+    blk=blk.getNextBlock();
+  }
+  return seq;
+}
+
+function getSequence(){
+  const wr=workspace.getAllBlocks(false).find(b=>b.type==='maze_when_run');
+  if(!wr) return [];
+  return readBlocks(wr.getNextBlock());
+}
+
+/* Vérifie si le chemin est libre dans une direction relative */
+function pathFree(checkDir){
+  const rel = checkDir==='left'?(dir+3)%4 : checkDir==='right'?(dir+1)%4 : dir;
+  const d=DIRS[rel], nr=pos.r+d.r, nc=pos.c+d.c;
+  return isWalkable(nr,nc) && !isTNT(nr,nc);
+}
+
+/* Affiche la case vérifiée avec pulse + icône */
+async function showPathCheck(checkDir){
+  const rel = checkDir==='left'?(dir+3)%4 : checkDir==='right'?(dir+1)%4 : dir;
+  const d=DIRS[rel], nr=pos.r+d.r, nc=pos.c+d.c;
+  const free = isWalkable(nr,nc) && !isTNT(nr,nc);
+  const cell = document.getElementById(`c${nr}_${nc}`);
+  if(!cell) return free;
+
+  // Pulse couleur
+  cell.classList.add(free ? 'check-free' : 'check-blocked');
+
+  // Icône flottante
+  const icon = document.createElement('div');
+  icon.className = 'check-icon';
+  icon.textContent = free ? '✅' : '🚫';
+  cell.appendChild(icon);
+
+  await wait(520);
+
+  cell.classList.remove('check-free','check-blocked');
+  icon.remove();
+  return free;
+}
+
+/* ══════════════════════════════
+   EXÉCUTION D'UN PAS
+══════════════════════════════ */
+async function execMove(id){
+  /* retourne 'ok' | 'wall' | 'tnt' | 'goal' */
+  const d=DIRS[dir], nr=pos.r+d.r, nc=pos.c+d.c;
+  if(!isWalkable(nr,nc)){
+    document.querySelector('[data-role="turtle"]')?.classList.add('shake');
+    await wait(200);
+    return 'wall';
+  }
+  if(isTNT(nr,nc)){
+    rmSp('turtle'); pos={r:nr,c:nc};
+    const cell=document.getElementById(`c${nr}_${nc}`);
+    const boom=document.createElement('div');
+    boom.className='explosion'; boom.textContent='💥';
+    cell.appendChild(boom);
+    await wait(700); boom.remove();
+    return 'tnt';
+  }
+  rmSp('turtle'); pos={r:nr,c:nc};
+  if(atGoal(nr,nc)) return 'goal';
+  drawTurtle();
+  return 'ok';
+}
+
+function checkStop(){ return stopRequested; }
+
+async function execSeq(seq){
+  for(const step of seq){
+    if(checkStop()) return 'stopped';
+    await wait(380);
+    workspace.highlightBlock(step.highlightId||step.id);
+
+    if(step.t==='repeat'){
+      for(let i=0; i<step.times; i++){
+        if(checkStop()) return 'stopped';
+        if(atGoal(pos.r,pos.c)) return 'goal';
+        for(const s of step.inner){
+          if(checkStop()) return 'stopped';
+          await wait(380);
+          workspace.highlightBlock(step.id);
+          if(s.t==='move'){
+            const r=await execMove(s.id);
+            if(r==='goal'){
+              return (i+1 < step.times) ? 'goal_excess' : 'goal';
+            }
+            if(r==='wall'||r==='tnt') return r;
+          } else if(s.t==='left'){  dir=(dir+3)%4; drawTurtle(); }
+            else if(s.t==='right'){ dir=(dir+1)%4; drawTurtle(); }
+          if(atGoal(pos.r,pos.c)) return (i+1 < step.times) ? 'goal_excess' : 'goal';
+        }
+      }
+    } else if(step.t==='repeat_until'){
+      let safety=0;
+      while(!atGoal(pos.r,pos.c) && safety++<100){
+        if(checkStop()) return 'stopped';
+        for(const s of step.inner){
+          if(checkStop()) return 'stopped';
+          await wait(380);
+          workspace.highlightBlock(s.highlightId||s.id);
+          if(s.t==='move'){
+            const r=await execMove(s.id);
+            if(r==='goal') return 'goal';
+            if(r==='wall'||r==='tnt') return r;
+          } else if(s.t==='left'){  dir=(dir+3)%4; drawTurtle(); }
+            else if(s.t==='right'){ dir=(dir+1)%4; drawTurtle(); }
+            else if(s.t==='if_path'){
+              const free=await showPathCheck(s.pathDir);
+              if(free){ const r=await execSeq(s.inner); if(r!=='end') return r; }
+            }
+            else if(s.t==='if_else_path'){
+              const free=await showPathCheck(s.pathDir);
+              const r=await execSeq(free?s.innerDo:s.innerElse);
+              if(r!=='end') return r;
+            }
+          if(atGoal(pos.r,pos.c)) return 'goal';
+        }
+      }
+    } else if(step.t==='move'){
+      const r=await execMove(step.id);
+      if(r==='goal') return 'goal';
+      if(r==='wall'||r==='tnt') return r;
+    } else if(step.t==='left'){  dir=(dir+3)%4; drawTurtle(); }
+      else if(step.t==='right'){ dir=(dir+1)%4; drawTurtle(); }
+      else if(step.t==='if_path'){
+        const free=await showPathCheck(step.pathDir);
+        if(free){ const r=await execSeq(step.inner); if(r!=='end') return r; }
+      }
+      else if(step.t==='if_else_path'){
+        const free=await showPathCheck(step.pathDir);
+        const r=await execSeq(free?step.innerDo:step.innerElse);
+        if(r!=='end') return r;
+      }
+  }
+  return 'end';
+}
+
+/* ══════════════════════════════
+   LANCER
+══════════════════════════════ */
+async function run(){
+  if(busy) return;
+
+  // Mode quiz — pas besoin de vérifier les blocs
+  if(isQuizLevel()){
+    if(quizChoice === null){ fb('<i class="fa-solid fa-circle-info"></i> Choisis une réponse d\'abord !','inf'); return; }
+    const seq=getSequence();
+    busy=true; stopRequested=false;
+    pos={...startPos}; dir=startDir;
+    setRunning(true);
+    document.getElementById('fb').innerHTML='';
+    buildGrid();
+    const result=await execSeq(seq);
+    workspace.highlightBlock(null);
+    await wait(300);
+    handleQuizResult(result);
+    return;
+  }
+
+  const seq=getSequence();
+  if(!seq.length){ fb('<i class="fa-solid fa-circle-info"></i> Connecte des blocs sous "au démarrage" !','inf'); return; }
+  busy=true; won=false; stopRequested=false;
+  pos={...startPos}; dir=startDir;
+  setRunning(true);
+  document.getElementById('fb').innerHTML='';
+  buildGrid();
+
+  const result=await execSeq(seq);
+  workspace.highlightBlock(null);
+
+  const n=workspace.getAllBlocks(false).length;
+  const maxB=getLevels()[currentLevel].maxBlocks;
+
+  if(result==='goal'||result==='goal_excess'){
+    won=true; rmSp('star');
+    const cell=document.getElementById(`c${pos.r}_${pos.c}`);
+    const sp=document.createElement('div');
+    sp.className='sprite celebrate'; sp.dataset.role='turtle';
+    sp.innerHTML=turtleSVG(DIR_ROT[dir]); cell.appendChild(sp);
+    await wait(300);
+    const pts = result==='goal_excess' ? 1 : (n<=maxB?2:1);
+    if(!levelScores[currentLevel]||pts>levelScores[currentLevel]) levelScores[currentLevel]=pts;
+    buildProgressBar();
+    // Sauvegarde serveur
+    saveProgressToServer(currentLevel, pts);
+    busy=false; setRunning(false);
+    await wait(300);
+    showModal(result==='goal_excess'?'excess':(pts===2?'perfect':'good'), n, maxB);
+  } else {
+    buildGrid();
+    busy=false; setRunning(false);
+    await wait(200);
+    showModal(result==='stopped'?'stopped':'fail', n, maxB);
+  }
+}
+
+function fb(msg,type){ document.getElementById('fb').innerHTML=`<div class="fm ${type}">${msg}</div>`; }
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+/* ══════════════════════════════
+   MODAL UNIVERSELLE
+══════════════════════════════ */
+function showModal(result, usedBlocks, maxBlocks){
+  const lv=getLevels()[currentLevel];
+  const isLast=currentLevel>=getLevels().length-1;
+  const cfg={
+    perfect:{ stars:'⭐⭐', title:'Parfait !',      badge:'2 points — Solution optimale !',      cls:'pts2', score:'⭐⭐ 2/2 pts', sc:'#2d6e1a' },
+    good:   { stars:'⭐',   title:'Bravo !',         badge:'1 point — Tu peux faire mieux !',     cls:'pts1', score:'⭐ 1/2 pts',  sc:'#1a5276' },
+    excess: { stars:'⭐',   title:'Presque !',       badge:'1 point — Tu as dépassé l\'étoile !', cls:'pts1', score:'⭐ 1/2 pts',  sc:'#1a5276' },
+    fail:   { stars:'😕',   title:'Pas encore...',   badge:'L\'étoile n\'est pas atteinte !',     cls:'pts0', score:'0/2 pts',    sc:'#8c2010' },
+    stopped:{ stars:'⏹',   title:'Arrêté',          badge:'Exécution interrompue',               cls:'pts0', score:'—',          sc:'#8fa0b5' },
+  };
+  const c=cfg[result]||cfg.fail;
+  document.getElementById('modal-stars').textContent=c.stars;
+  document.getElementById('modal-title').textContent=c.title;
+  const pb=document.getElementById('modal-pts');
+  pb.textContent=c.badge; pb.className='modal-pts '+c.cls;
+  document.getElementById('modal-level').textContent=lv.label;
+  document.getElementById('modal-used').textContent=usedBlocks!=null?`${usedBlocks} bloc${usedBlocks>1?'s':''}`:'—';
+  document.getElementById('modal-max').textContent=`${maxBlocks} blocs`;
+  const se=document.getElementById('modal-score');
+  se.textContent=c.score; se.style.color=c.sc;
+  let total=0; Object.values(levelScores).forEach(s=>total+=s);
+  const maxPts = getLevels().length * 2;
+  document.getElementById('modal-total').textContent=`${total} / ${maxPts} pts`;
+  const nb=document.getElementById('modal-next-btn');
+  const showNext=(result==='perfect'||result==='good'||result==='excess')&&!isLast;
+  nb.style.display=showNext?'':'none';
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('show'); }
+
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('modal-overlay').addEventListener('click',e=>{
+    if(e.target===document.getElementById('modal-overlay')) closeModal();
+  });
+  goToLevel(0);
+  checkAuth();
+});
+
+/* ══════════════════════════════
+   AUTHENTIFICATION — localStorage
+══════════════════════════════ */
+
+function checkAuth() {
+  const stored = localStorage.getItem('labyrinthe_user');
+  if (!stored) { window.location.href = 'labyrinthe-index.html'; return false; }
+  const user = JSON.parse(stored);
+  currentUser = user;
+  document.getElementById('user-name-txt').textContent  = user.nom;
+  document.getElementById('user-group-txt').textContent = user.groupe;
+  document.getElementById('user-bar').classList.add('show');
+  buildProgressBar();
+  return true;
+}
+
+function logout() {
+  localStorage.removeItem('labyrinthe_user');
+  window.location.href = 'labyrinthe-index.html';
+}
+
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx7yp3g30PMqU9-AE0FrSML6nsrrIkoBM3nlDNtug-h3ADg-iz8sqn9w0irLpGTq5tGGw/exec';
+
+// Utilisateur courant (en mémoire)
+let currentUser = null; // { nom, courriel, groupe, motdepasse }
+
+
+
+
+
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value.trim();
+  if (!email || !pass) { authError('Remplis tous les champs.'); return; }
+
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Connexion...';
+  authError('');
+
+  try {
+    const res = await callScript({ action:'login', courriel:email, motdepasse:pass });
+    if (res.ok) {
+      currentUser = { nom:res.user.nom, courriel:res.user.courriel, groupe:res.user.groupe, motdepasse:pass };
+      onAuthSuccess(res.user);
+    } else {
+      authError(res.msg);
+    }
+  } catch(e) {
+    authError('Erreur de connexion. Réessaie.');
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-play"></i> Se connecter';
+}
+
+async function doRegister() {
+  const nom   = document.getElementById('reg-nom').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const pass  = document.getElementById('reg-pass').value.trim();
+  const code  = document.getElementById('reg-code').value.trim().toUpperCase();
+  if (!nom||!email||!pass||!code) { authErrorReg('Remplis tous les champs.'); return; }
+
+  const btn = document.getElementById('register-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Création...';
+  authErrorReg('');
+
+  try {
+    const res = await callScript({ action:'register', nom, courriel:email, motdepasse:pass, code_classe:code });
+    if (res.ok) {
+      currentUser = { nom:res.user.nom, courriel:res.user.courriel, groupe:res.user.groupe, motdepasse:pass };
+      onAuthSuccess(res.user);
+    } else {
+      authErrorReg(res.msg);
+    }
+  } catch(e) {
+    authErrorReg('Erreur. Réessaie.');
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Créer mon compte';
+}
+
+
+
+function onAuthSuccess(user) {}
+
+function logout() {
+  currentUser = null;
+  serieScores    = [{}, {}];
+  levelWorkspaces = {};
+  levelScores    = levelScores;
+  levelWorkspaces= levelWorkspaces;
+  document.getElementById('user-bar').classList.remove('show');
+  document.getElementById('serie-overlay').style.display = 'none';
+  document.getElementById('auth-overlay').style.display = 'flex';
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-pass').value  = '';
+  authError(''); switchTab('login');
+  buildProgressBar();
+}
+
+/* Appel Apps Script via fetch (no-cors → on passe par un iframe trick ou jsonp)
+   Google Apps Script nécessite fetch avec mode no-cors pour les POST,
+   mais on utilise un formulaire hidden pour contourner les restrictions CORS */
+async function callScript(data) {
+  const resp = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    mode: 'cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(data),
+    redirect: 'follow',
+  });
+  return await resp.json();
+}
+
+/* Sauvegarde automatique après chaque niveau réussi */
+async function saveProgressToServer(niveau, score) {
+  if (!currentUser) return;
+  try {
+    await callScript({
+      action: 'save',
+      courriel: currentUser.courriel,
+      motdepasse: currentUser.motdepasse,
+      serie: 2,
+      niveau,
+      score,
+    });
+  } catch(e) {
+    console.warn('Sauvegarde échouée:', e);
+  }
+}
+
+</script>
+</body>
+</html>
